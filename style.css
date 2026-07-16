@@ -13,4 +13,79 @@ html, body {
   transform: translate(-50%, -50%);
   image-rendering: pixelated;
   background: #05070c;
+  touch-action: none;
+}
+
+/* --- on-screen touch controls (created by js/touch.js) --- */
+
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  font-family: 'Courier New', monospace;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.tc-dpad,
+.tc-actions {
+  position: absolute;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  display: grid;
+  gap: 6px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.tc-dpad {
+  left: calc(14px + env(safe-area-inset-left));
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 56px);
+  grid-template-areas:
+    ".    up    ."
+    "left .     right"
+    ".    down  .";
+}
+
+.tc-actions {
+  right: calc(14px + env(safe-area-inset-right));
+  grid-template-columns: 64px 76px;
+  grid-template-rows: 64px 76px;
+  grid-template-areas:
+    "heal   dash"
+    "attack jump";
+  align-items: end;
+  justify-items: end;
+}
+
+.tc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgba(200, 220, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(20, 30, 50, 0.35);
+  color: rgba(200, 220, 255, 0.75);
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.tc-dpad .tc-btn {
+  border-radius: 12px;
+  font-size: 18px;
+}
+
+.tc-btn-big {
+  font-size: 15px;
+}
+
+.tc-btn.tc-active {
+  background: rgba(120, 180, 255, 0.45);
+  border-color: rgba(220, 240, 255, 0.9);
+  color: #fff;
 }

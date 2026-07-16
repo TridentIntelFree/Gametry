@@ -30,6 +30,12 @@ then visit `http://localhost:8000`.
 | Bind (heal) | Hold V / L while grounded — costs 3 silk |
 | Rest | Up at a bench (heals fully, saves checkpoint, respawns enemies) |
 
+On phones and tablets (including iOS) on-screen touch controls appear
+automatically: a d-pad on the left and JUMP / ATK / DASH / BIND buttons on the
+right. You can slide your thumb across the d-pad without lifting it. Landscape
+orientation is recommended. (Append `?touch=1` to the URL to force the touch
+controls on a desktop browser.)
+
 ## Mechanics
 
 - **Masks** — 5 hit points shown top-left. Lose them all and you return to your last bench.

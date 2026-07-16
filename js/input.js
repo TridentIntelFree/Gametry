@@ -33,6 +33,20 @@ const Input = (() => {
     down.clear();
   });
 
+  // programmatic input, used by the on-screen touch controls
+  function simulateDown(action) {
+    const code = ACTIONS[action][0];
+    if (!down.has(code)) {
+      justPressed.add(code);
+      anyKey = true;
+    }
+    down.add(code);
+  }
+
+  function simulateUp(action) {
+    down.delete(ACTIONS[action][0]);
+  }
+
   function heldAction(action) {
     return ACTIONS[action].some((code) => down.has(code));
   }
@@ -45,6 +59,9 @@ const Input = (() => {
     held: heldAction,
     pressed: pressedAction,
     anyKeyPressed: () => anyKey,
+    anyPress: () => { anyKey = true; },
+    simulateDown,
+    simulateUp,
     // horizontal input axis: -1, 0 or 1
     axis: () => (heldAction('right') ? 1 : 0) - (heldAction('left') ? 1 : 0),
     // call once at the end of every frame
