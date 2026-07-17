@@ -61,6 +61,12 @@ class Crawler {
     ctx.beginPath();
     ctx.ellipse(cx, y + this.h, this.w / 2, this.h, 0, Math.PI, 0);
     ctx.fill();
+    // shell highlight
+    ctx.strokeStyle = 'rgba(190,205,235,0.18)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, y + this.h, this.w / 2 - 4, this.h - 4, 0, Math.PI * 1.15, Math.PI * 1.6);
+    ctx.stroke();
     // shuffling legs
     ctx.strokeStyle = this.flash > 0 ? '#e8e8f2' : '#1c1828';
     ctx.lineWidth = 2;

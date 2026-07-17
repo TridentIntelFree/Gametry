@@ -1,28 +1,37 @@
 // Main game: loop, camera, world state, particles, background and UI.
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+// opaque + desynchronized shave latency where the platform supports it
+const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 const VIEW_W = canvas.width;
 const VIEW_H = canvas.height;
 
 // scale canvas to fit the window, preserving aspect ratio
+// (visualViewport tracks the real usable area on iOS when toolbars show/hide)
 function fitCanvas() {
-  const s = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
+  const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const s = Math.min(vw / VIEW_W, vh / VIEW_H);
   canvas.style.width = `${VIEW_W * s}px`;
   canvas.style.height = `${VIEW_H * s}px`;
 }
 window.addEventListener('resize', fitCanvas);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitCanvas);
 fitCanvas();
 
-// deterministic RNG for the procedural background
-function mulberry32(seed) {
-  return () => {
-    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// soft light halo around the player, pre-rendered once
+const lightSprite = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  const rg = g.createRadialGradient(256, 256, 20, 256, 256, 250);
+  rg.addColorStop(0, 'rgba(160,190,255,0.14)');
+  rg.addColorStop(0.5, 'rgba(120,150,220,0.06)');
+  rg.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = rg;
+  g.fillRect(0, 0, 512, 512);
+  return c;
+})();
 
 // pre-generated parallax silhouette layers
 function makeBgLayer(seed, count, minH, maxH) {
@@ -58,6 +67,7 @@ const game = {
   shakeMag: 0,
   dustT: 0,
   bgFar: makeBgLayer(7, 40, 60, 200),
+  bgMid: makeBgLayer(29, 34, 70, 230),
   bgNear: makeBgLayer(13, 30, 80, 260),
 };
 
@@ -268,8 +278,23 @@ function drawBackground() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-  drawBgLayer(game.bgFar, 0.22, '#101726');
-  drawBgLayer(game.bgNear, 0.45, '#0d1320');
+  drawBgLayer(game.bgFar, 0.18, '#111828');
+  drawBgLayer(game.bgMid, 0.3, '#0f1524');
+  drawBgLayer(game.bgNear, 0.45, '#0c1220');
+  drawFog();
+}
+
+// slow horizontal mist bands drifting through the cave
+function drawFog() {
+  for (let i = 0; i < 2; i++) {
+    const y0 = VIEW_H * (0.35 + i * 0.3) + Math.sin(game.time * 0.1 + i * 2.1) * 24;
+    const g = ctx.createLinearGradient(0, y0 - 60, 0, y0 + 60);
+    g.addColorStop(0, 'rgba(80,100,145,0)');
+    g.addColorStop(0.5, `rgba(80,100,145,${0.055 + i * 0.02})`);
+    g.addColorStop(1, 'rgba(80,100,145,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y0 - 60, VIEW_W, 120);
+  }
 }
 
 function drawBgLayer(shapes, factor, color) {
@@ -295,6 +320,13 @@ function drawBgLayer(shapes, factor, color) {
 
 function drawBench(b) {
   const x = b.x - game.cam.x, y = b.y - game.cam.y;
+  // warm lantern glow so benches read as safe places
+  const glow = ctx.createRadialGradient(x + TILE / 2, y + 10, 4, x + TILE / 2, y + 10, 52);
+  const pulse = 0.09 + Math.sin(game.time * 1.7 + b.i) * 0.02;
+  glow.addColorStop(0, `rgba(255,214,150,${pulse})`);
+  glow.addColorStop(1, 'rgba(255,214,150,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 40, y - 44, TILE + 80, TILE + 60);
   ctx.strokeStyle = '#cfd6e4';
   ctx.lineWidth = 3;
   // seat
@@ -372,13 +404,15 @@ function drawUI() {
     }
     ctx.restore();
   }
-  // silk gauge
+  // silk gauge, segmented per unit
   const gx = 26, gy = 46, gw = P.MAX_SILK * 12;
   ctx.strokeStyle = 'rgba(191,232,255,0.4)';
   ctx.lineWidth = 1.5;
   ctx.strokeRect(gx, gy, gw, 8);
   ctx.fillStyle = '#bfe8ff';
   ctx.fillRect(gx + 1, gy + 1, (gw - 2) * (p.silk / P.MAX_SILK), 6);
+  ctx.fillStyle = 'rgba(10,16,28,0.55)';
+  for (let i = 1; i < P.MAX_SILK; i++) ctx.fillRect(gx + i * 12, gy + 1, 1, 6);
 
   // toast message
   if (game.toastT > 0) {
@@ -406,7 +440,14 @@ function drawTitle() {
 
   ctx.font = '14px monospace';
   ctx.fillStyle = '#aab4cc';
-  const lines = [
+  const lines = window.TOUCH_UI ? [
+    'Move .......... left pad',
+    'Jump .......... JUMP   (hold walls to wall-jump)',
+    'Attack ........ ATK    (hold ▼ in the air to pogo)',
+    'Dash .......... DASH',
+    'Bind (heal) ... hold BIND on the ground (costs 3 silk)',
+    'Rest .......... ▲ at a bench',
+  ] : [
     'Move .......... Arrow keys / WASD',
     'Jump .......... Z / Space   (hold walls to wall-jump)',
     'Attack ........ X / J       (down + attack in air to pogo)',
@@ -420,7 +461,7 @@ function drawTitle() {
   if (blink) {
     ctx.fillStyle = '#e9e5f2';
     ctx.font = '16px monospace';
-    ctx.fillText('— press any key —', VIEW_W / 2, 470);
+    ctx.fillText(window.TOUCH_UI ? '— tap to begin —' : '— press any key —', VIEW_W / 2, 470);
   }
 }
 
@@ -443,6 +484,16 @@ function render() {
   for (const e of game.enemies) e.draw(ctx, game.cam);
   game.player.draw(ctx, game.cam, game.time);
   drawParticles();
+
+  // soft light halo following the player
+  if (!game.player.dead) {
+    const px = game.player.x + game.player.w / 2 - game.cam.x;
+    const py = game.player.y + game.player.h / 2 - game.cam.y;
+    ctx.globalCompositeOperation = 'screen';
+    ctx.drawImage(lightSprite, px - 256, py - 256);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   drawVignette();
 
   ctx.restore();
