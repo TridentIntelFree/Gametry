@@ -4,6 +4,13 @@ html, body {
   height: 100%;
   background: #05070c;
   overflow: hidden;
+  /* no browser gesture handling at all: kills double-tap / pinch zoom on
+     iOS and, crucially, the ~350ms tap delay Safari adds while it waits
+     to see if a tap becomes a double-tap */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
 }
 
 #game {
@@ -32,7 +39,7 @@ html, body {
 .tc-dpad,
 .tc-actions {
   position: absolute;
-  bottom: calc(14px + env(safe-area-inset-bottom));
+  bottom: calc(16px + env(safe-area-inset-bottom));
   display: grid;
   gap: 6px;
   pointer-events: auto;
@@ -40,9 +47,9 @@ html, body {
 }
 
 .tc-dpad {
-  left: calc(14px + env(safe-area-inset-left));
-  grid-template-columns: repeat(3, 56px);
-  grid-template-rows: repeat(3, 56px);
+  left: calc(16px + env(safe-area-inset-left));
+  grid-template-columns: repeat(3, 60px);
+  grid-template-rows: repeat(3, 60px);
   grid-template-areas:
     ".    up    ."
     "left .     right"
@@ -50,9 +57,9 @@ html, body {
 }
 
 .tc-actions {
-  right: calc(14px + env(safe-area-inset-right));
-  grid-template-columns: 64px 76px;
-  grid-template-rows: 64px 76px;
+  right: calc(16px + env(safe-area-inset-right));
+  grid-template-columns: 68px 84px;
+  grid-template-rows: 68px 84px;
   grid-template-areas:
     "heal   dash"
     "attack jump";
@@ -77,7 +84,7 @@ html, body {
 
 .tc-dpad .tc-btn {
   border-radius: 12px;
-  font-size: 18px;
+  font-size: 19px;
 }
 
 .tc-btn-big {

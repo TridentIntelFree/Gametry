@@ -60,6 +60,9 @@ class Player {
     this.invuln = 0;
     this.healT = 0;
     this.dead = false;
+    this.landT = 0;          // landing squash timer
+    this.ghosts = [];        // dash afterimages
+    this.ghostT = 0;
   }
 
   update(dt, game) {
@@ -74,6 +77,20 @@ class Player {
     this.atkT = Math.max(0, this.atkT - dt);
     this.atkCd = Math.max(0, this.atkCd - dt);
     this.invuln = Math.max(0, this.invuln - dt);
+    this.landT = Math.max(0, this.landT - dt);
+
+    // dash afterimages
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      this.ghosts[i].life -= dt;
+      if (this.ghosts[i].life <= 0) this.ghosts.splice(i, 1);
+    }
+    if (this.dashT > 0) {
+      this.ghostT -= dt;
+      if (this.ghostT <= 0) {
+        this.ghostT = 0.028;
+        this.ghosts.push({ x: this.x, y: this.y, facing: this.facing, life: 0.22 });
+      }
+    }
 
     const axis = Input.axis();
     if (axis !== 0 && this.dashT <= 0) this.facing = axis;
@@ -119,6 +136,19 @@ class Player {
     this.wallDir = wallR ? 1 : wallL ? -1 : 0;
     const wallSliding = !this.onGround && this.wallDir !== 0 &&
       axis === this.wallDir && this.vy > 0 && this.dashT <= 0;
+    if (wallSliding && Math.random() < dt * 22) {
+      game.particles.push({
+        x: this.x + (this.wallDir > 0 ? this.w : 0),
+        y: this.y + 6 + Math.random() * (this.h - 12),
+        vx: -this.wallDir * (10 + Math.random() * 25),
+        vy: -20 - Math.random() * 40,
+        life: 0.25 + Math.random() * 0.2,
+        maxLife: 0.45,
+        size: 1.5 + Math.random() * 1.5,
+        color: '#5a688a',
+        grav: 500,
+      });
+    }
 
     // --- gravity ---
     if (this.dashT <= 0) {
@@ -183,7 +213,10 @@ class Player {
       this.coyote = P.COYOTE;
       this.canAirDash = true;
       this.jumpCut = false;
-      if (!wasGrounded) game.spawnBurst(this.x + this.w / 2, this.y + this.h, '#3a4763', 4, 50);
+      if (!wasGrounded) {
+        this.landT = 0.11;
+        game.spawnBurst(this.x + this.w / 2, this.y + this.h, '#3a4763', 4, 50);
+      }
     }
     if (res.hitX) this.dashT = 0;
 
@@ -234,15 +267,49 @@ class Player {
 
   draw(ctx, cam, time) {
     if (this.dead) return;
+
+    // dash afterimages, oldest first
+    for (const g of this.ghosts) {
+      const a = (g.life / 0.22) * 0.3;
+      ctx.save();
+      ctx.translate(g.x + this.w / 2 - cam.x, g.y - cam.y);
+      ctx.scale(g.facing, 1);
+      ctx.fillStyle = `rgba(143,164,216,${a})`;
+      ctx.beginPath();
+      ctx.moveTo(0, 6);
+      ctx.lineTo(9, this.h - 2);
+      ctx.lineTo(-9, this.h - 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 8, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     // blink while invulnerable
     if (this.invuln > 0 && Math.floor(time * 18) % 2 === 0) return;
 
     const x = this.x - cam.x, y = this.y - cam.y;
     const cx = x + this.w / 2;
 
+    // squash on landing, stretch while airborne, bob while running
+    let sx = 1, sy = 1;
+    if (this.landT > 0) {
+      sy = 0.86;
+      sx = 1.14;
+    } else if (!this.onGround) {
+      const k = Math.max(-0.1, Math.min(0.14, -this.vy / 1800));
+      sy = 1 + k;
+      sx = 1 - k * 0.6;
+    }
+    const running = this.onGround && Math.abs(this.vx) > 30;
+    const bob = running ? Math.sin(time * 13) * 1.6 : 0;
+
     ctx.save();
-    ctx.translate(cx, y);
-    ctx.scale(this.facing, 1);
+    ctx.translate(cx, y + this.h);
+    ctx.scale(this.facing * sx, sy);
+    ctx.translate(0, -this.h + bob);
 
     // cloak
     ctx.fillStyle = '#e9e5f2';
