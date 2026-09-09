@@ -38,6 +38,22 @@ in sRGB would bias exactly the shadows we're trying to rescue.
 After that: black-point subtraction, auto-gain driven by a 64×64 readback of the
 scene, a shadow-lifting tone curve, edge-aware denoise, and unsharp masking.
 
+## Sharpness
+
+Two things decide whether the preview looks sharp, and the **Info** panel
+reports both:
+
+- **Detail ratio** — real sensor pixels behind each screen pixel. At 1.0 or
+  above the preview is pixel-for-pixel; below that it is being upscaled and
+  will look soft no matter how well the lens focused.
+- **Processing size vs screen pixels** — these should match. If processing is
+  smaller, the adaptive scaler has backed off to hold the frame rate.
+
+Zoom crops from the full-resolution video *before* processing, so 2× into a 4K
+frame still leaves ~1900 real pixels across rather than magnifying an
+already-shrunken buffer. Past the point where a lens runs out of real detail,
+the app switches lenses instead of interpolating.
+
 ## Stabilisation
 
 The gyroscope reports angular velocity. Integrating it gives orientation, but
@@ -49,9 +65,14 @@ pixels to move into.
 
 ## Controls
 
-- **Pinch** the viewfinder or drag the zoom slider — up to 8×
+- **Tap the viewfinder to focus** on that point. Where the browser won't accept
+  a focus point, this still triggers a refocus and tells you so.
+- **Pinch** the viewfinder or drag the zoom slider. Zoom is an absolute focal
+  multiplier matching the lens markings, and crossing a threshold hands over to
+  the next lens rather than magnifying further.
 - **Lens buttons** (.5× / 1× / 3×) appear when your phone exposes multiple back
   cameras. These are real optical lenses, not crops.
+- **Focus slider** appears in ⚙ when the browser exposes manual focus distance.
 - **⚙** opens brightness, shadows, contrast, denoise, sharpen and colour sliders
 - **Peaking** tints in-focus edges — essential in Macro, where depth of field is
   a few millimetres

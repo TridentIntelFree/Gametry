@@ -140,6 +140,7 @@ export class GLCore {
       if (Array.isArray(value)) {
         if (value.length === 2) gl.uniform2f(loc, value[0], value[1]);
         else if (value.length === 3) gl.uniform3f(loc, value[0], value[1], value[2]);
+        else if (value.length === 4) gl.uniform4f(loc, value[0], value[1], value[2], value[3]);
       } else if (INT_UNIFORMS.has(name)) {
         gl.uniform1i(loc, value | 0);
       } else {

@@ -23,6 +23,9 @@
     <line class="g" x1="0" y1="66.66%" x2="100%" y2="66.66%"/>
   </svg>
 
+  <!-- tap-to-focus reticle -->
+  <div id="reticle" hidden></div>
+
   <!-- start gate: getUserMedia and the motion sensor both need a user gesture -->
   <div id="gate">
     <h1>Lumen</h1>
@@ -59,6 +62,7 @@
   <!-- bottom controls -->
   <footer id="bottom" hidden>
     <div class="sliders" id="sliders" hidden>
+      <label id="focus-row" hidden>Focus <input type="range" id="sl-focus" min="0" max="1" step="0.01" value="1"></label>
       <label>Brightness <input type="range" id="sl-gain" min="0.25" max="6" step="0.05" value="1"></label>
       <label>Shadows <input type="range" id="sl-gamma" min="0.6" max="3" step="0.05" value="1"></label>
       <label>Contrast <input type="range" id="sl-contrast" min="0.6" max="1.6" step="0.02" value="1"></label>
