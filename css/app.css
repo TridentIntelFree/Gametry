@@ -108,6 +108,42 @@ html, body {
 .fine { max-width: 30rem; margin: 4px 0 0; font-size: 12px; color: #677288; line-height: 1.5; }
 .fine.err { color: #ff8b8b; }
 
+.build {
+  position: absolute;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  margin: 0;
+  font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #4a5568;
+  letter-spacing: 0.06em;
+}
+
+#update-bar {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: calc(14px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px 9px 16px;
+  font-size: 13px;
+  white-space: nowrap;
+  background: rgba(10, 18, 34, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+#update-bar button {
+  padding: 7px 15px;
+  font: 600 12px/1 inherit;
+  color: #041018;
+  background: var(--hot);
+  border: 0;
+  border-radius: 999px;
+}
+
 /* ---------- chrome ---------- */
 
 #top {

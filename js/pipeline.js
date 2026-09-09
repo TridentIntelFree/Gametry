@@ -1,8 +1,13 @@
 // The render graph: video -> accumulation -> screen, plus the analysis
 // readback that drives auto-gain and the live histogram.
 
-import { GLCore } from './glcore.js';
-import { VERT, ACCUM_FRAG, COMPOSITE_FRAG, ANALYZE_FRAG } from './shaders.js';
+// See the note in app.js: the ?v= query is carried through the whole module
+// graph so a release cannot be served half-stale.
+const V = new URL(import.meta.url).search || '';
+const [{ GLCore }, { VERT, ACCUM_FRAG, COMPOSITE_FRAG, ANALYZE_FRAG }] = await Promise.all([
+  import(`./glcore.js${V}`),
+  import(`./shaders.js${V}`),
+]);
 
 const ANALYZE_SIZE = 64;
 const ANALYZE_INTERVAL = 180; // ms between CPU readbacks

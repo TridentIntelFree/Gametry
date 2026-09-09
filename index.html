@@ -10,7 +10,8 @@
   <meta name="description" content="A camera that uses every photon your iPhone can gather.">
   <title>Lumen</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/app.css">
+  <!-- ?v= is bumped with each release so a stale stylesheet cannot survive -->
+  <link rel="stylesheet" href="css/app.css?v=2026.09.09-9">
 </head>
 <body>
   <canvas id="view"></canvas>
@@ -36,6 +37,13 @@
       stored, or sent anywhere.
     </p>
     <p class="fine err" id="gate-error" hidden></p>
+    <p class="build" id="build">—</p>
+  </div>
+
+  <!-- shown when the service worker has a newer version staged -->
+  <div id="update-bar" hidden>
+    <span>A new version is ready.</span>
+    <button id="update-now">Reload</button>
   </div>
 
   <!-- top bar -->
@@ -98,6 +106,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=2026.09.09-9"></script>
 </body>
 </html>
