@@ -47,6 +47,32 @@ html, body {
 }
 #guides .g { stroke: rgba(255, 255, 255, 0.28); stroke-width: 1; }
 
+#reticle {
+  position: fixed;
+  z-index: 16;
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  border: 1.5px solid #ffd166;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+  pointer-events: none;
+  animation: reticle 0.45s ease-out;
+}
+#reticle::after {
+  content: '';
+  position: absolute;
+  inset: 32px;
+  border: 1px solid rgba(255, 209, 102, 0.7);
+  border-radius: 2px;
+}
+@keyframes reticle {
+  0%   { transform: scale(1.5); opacity: 0; }
+  35%  { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+#reticle.settled { opacity: 0.45; transition: opacity 0.5s; }
+
 /* ---------- start gate ---------- */
 
 #gate {

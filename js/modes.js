@@ -39,8 +39,8 @@ export const MODES = {
       gamma: 1.9,
       contrast: 0.92,
       saturation: 0.85,
-      denoise: 0.85,
-      sharpen: 0.45,
+      denoise: 0.6,
+      sharpen: 0.55,
       palette: 0,
       vignette: 0.0,
       autoExposure: true,
@@ -62,8 +62,8 @@ export const MODES = {
       gamma: 2.3,
       contrast: 0.88,
       saturation: 1.0,
-      denoise: 1.0,
-      sharpen: 0.55,
+      denoise: 0.75,
+      sharpen: 0.65,
       palette: 1,
       vignette: 0.35,
       autoExposure: true,
@@ -117,7 +117,8 @@ export const MODES = {
       autoMax: 3,
     },
     lensFactor: 0.5,   // ultra-wide focuses far closer than the main lens
-    zoom: 2.0,         // crop back in to fill the frame with the subject
+    pinLens: true,     // stay there — auto hand-over would defeat the point
+    zoom: 1.0,         // ~2x into the ultra-wide: fills the frame, stays sharp
     peak: 0.20,        // focus peaking on: depth of field is razor thin up close
   },
 

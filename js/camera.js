@@ -147,6 +147,7 @@ export class Camera {
     this.facing = facing;
     this.video.srcObject = stream;
     this.probe();
+    this.setContinuousFocus().catch(() => {});
 
     await this.video.play().catch(() => {});
     await new Promise((resolve) => {
@@ -177,13 +178,65 @@ export class Camera {
       ? navigator.mediaDevices.getSupportedConstraints()
       : {};
     caps.supportedConstraints = supported;
-    caps.hasZoom = !!(caps.capabilities && 'zoom' in caps.capabilities);
-    caps.hasTorch = !!(caps.capabilities && 'torch' in caps.capabilities);
-    caps.hasFocus = !!(caps.capabilities && 'focusDistance' in caps.capabilities);
-    caps.hasISO = !!(caps.capabilities && 'iso' in caps.capabilities);
-    caps.hasExposureTime = !!(caps.capabilities && 'exposureTime' in caps.capabilities);
+    const cc = caps.capabilities || {};
+    caps.hasZoom = 'zoom' in cc;
+    caps.hasTorch = 'torch' in cc;
+    caps.hasFocus = 'focusDistance' in cc;
+    caps.hasFocusMode = Array.isArray(cc.focusMode) && cc.focusMode.length > 0;
+    caps.hasPOI = 'pointsOfInterest' in cc;
+    caps.focusModes = cc.focusMode || [];
+    caps.hasISO = 'iso' in cc;
+    caps.hasExposureTime = 'exposureTime' in cc;
     this.capabilities = caps;
     return caps;
+  }
+
+  // Ask for continuous autofocus. Browsers default to it, but a stream that
+  // was left in a locked or single-shot mode will otherwise never re-focus.
+  async setContinuousFocus() {
+    const modes = this.capabilities.focusModes || [];
+    if (!modes.includes('continuous')) return false;
+    try {
+      await this.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Focus on a point, in normalised 0..1 coordinates of the video frame.
+  // Returns what actually took effect so the UI can tell the truth.
+  async focusAt(nx, ny) {
+    const caps = this.capabilities;
+    const modes = caps.focusModes || [];
+    const adv = {};
+    if (caps.hasPOI) adv.pointsOfInterest = [{ x: nx, y: ny }];
+    if (modes.includes('single-shot')) adv.focusMode = 'single-shot';
+    else if (modes.includes('continuous')) adv.focusMode = 'continuous';
+
+    if (!Object.keys(adv).length) return { ok: false, reason: 'unsupported' };
+    try {
+      await this.track.applyConstraints({ advanced: [adv] });
+      return { ok: true, poi: caps.hasPOI };
+    } catch {
+      return { ok: false, reason: 'rejected' };
+    }
+  }
+
+  // Manual focus, where the browser exposes it. 0 = closest, 1 = infinity.
+  async setFocusDistance(t) {
+    const cc = this.capabilities.capabilities;
+    if (!cc || !('focusDistance' in cc)) return false;
+    const { min, max } = cc.focusDistance;
+    const value = min + (max - min) * Math.max(0, Math.min(1, t));
+    try {
+      await this.track.applyConstraints({
+        advanced: [{ focusMode: 'manual', focusDistance: value }],
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // Optical/sensor zoom, where the browser implements it. Returns false when

@@ -43,6 +43,7 @@ out vec4 fragColor;
 
 uniform sampler2D uFrame;
 uniform sampler2D uHistory;
+uniform vec4  uCrop;       // xy = uv offset, zw = uv scale (aspect-fill + zoom)
 uniform float uAlphaMin;   // steady-state blend weight (~1/frames averaged)
 uniform float uRejectLo;   // below this delta, integrate fully
 uniform float uRejectHi;   // above this delta, take the new pixel outright
@@ -51,7 +52,11 @@ uniform int   uMode;       // 0 = average, 1 = max (light trails)
 ${COMMON}
 
 void main() {
-  vec3 cur = srgbToLinear(texture(uFrame, vUv).rgb);
+  // Zoom and aspect correction happen HERE, sampling the full-resolution
+  // video. Cropping at ingest keeps every real sensor pixel inside the crop;
+  // doing it at the end would just magnify an already-downscaled buffer.
+  vec2 src = uCrop.xy + vUv * uCrop.zw;
+  vec3 cur = srgbToLinear(texture(uFrame, src).rgb);
 
   if (uReset > 0.5) {
     fragColor = vec4(cur, 1.0);
@@ -59,6 +64,7 @@ void main() {
   }
 
   vec3 hist = texture(uHistory, vUv).rgb;
+
 
   if (uMode == 1) {
     // light trails: keep the brightest value each pixel has ever seen
@@ -80,7 +86,8 @@ out vec4 fragColor;
 uniform sampler2D uAccum;
 uniform vec2  uTexel;
 uniform vec2  uOffset;     // stabilisation shift, in UV
-uniform float uZoom;
+uniform float uZoom;       // stabilisation margin ONLY — user zoom is applied
+                           // at ingest, where full sensor detail still exists
 uniform float uRoll;       // stabilisation roll, radians
 uniform float uMirror;     // 1.0 to flip horizontally (front camera)
 
@@ -117,10 +124,12 @@ vec3 denoise(vec2 uv) {
   vec3 sum = c0;
   float wsum = 1.0;
 
+  // Radius is one texel, not 1.4 — a wider tap spacing samples past genuine
+  // detail and reads as softness no matter how well the lens focused.
   for (int y = -2; y <= 2; y++) {
     for (int x = -2; x <= 2; x++) {
       if (x == 0 && y == 0) continue;
-      vec2 o = vec2(float(x), float(y)) * uTexel * 1.4;
+      vec2 o = vec2(float(x), float(y)) * uTexel;
       vec3 c = texture(uAccum, uv + o).rgb;
       float w = exp(-abs(luma(c) - l0) / range)
               * exp(-float(x * x + y * y) * 0.18);

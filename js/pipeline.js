@@ -27,12 +27,15 @@ export class Pipeline {
     this.height = 0;
     this.needsReset = true;
 
-    // adaptive quality: processing resolution is capped, and drops further if
-    // the GPU cannot keep up. A phone that renders a smooth 30fps beats one
-    // that renders a stuttering 12fps at full resolution.
-    this.maxDimension = 1920;
+    // Processing runs at the display's own pixel count, so the result maps
+    // 1:1 to the screen. Rendering smaller and letting the GPU upscale is
+    // indistinguishable from a lens that never focused.
+    this.maxDimension = 2600;
     this.frameMs = 16;
     this.qualityScale = 1;
+    this.crop = [0, 0, 1, 1];
+    this.lastCropKey = '';
+    this.sourceScale = 1; // real source pixels per output pixel (>=1 is sharp)
 
     this.histogram = new Uint32Array(64);
     this.meanLuma = 0.2;
@@ -54,7 +57,8 @@ export class Pipeline {
       peak: 0.0,
       vignette: 0.0,
       palette: 0,
-      zoom: 1,
+      zoom: 1,          // user zoom, applied at ingest
+      stabMargin: 1,    // stabiliser headroom, applied at composite
       autoExposure: true,
       autoTarget: 0.22,
       autoMax: 8,
@@ -64,13 +68,44 @@ export class Pipeline {
 
   get gl() { return this.core.gl; }
 
-  resize(videoW, videoH) {
-    const scale = Math.min(
-      1,
-      this.maxDimension / Math.max(videoW, videoH)
-    ) * this.qualityScale;
-    const w = Math.max(2, Math.round(videoW * scale));
-    const h = Math.max(2, Math.round(videoH * scale));
+  // Work out the region of the video to sample (aspect-fill, then zoom) and
+  // how many pixels to process it at.
+  //
+  // The crop is taken from the full-resolution video, so zooming 3x into a 4K
+  // frame still leaves ~1280 real pixels across — optical-grade detail rather
+  // than a magnified thumbnail.
+  planCrop(videoW, videoH, zoom, outAspect) {
+    const videoAspect = videoW / videoH;
+    let cw, ch;
+    if (videoAspect > outAspect) {
+      ch = videoH;
+      cw = videoH * outAspect;      // video is wider than the screen: trim sides
+    } else {
+      cw = videoW;
+      ch = videoW / outAspect;      // taller: trim top and bottom
+    }
+    cw /= zoom;
+    ch /= zoom;
+
+    const su = cw / videoW;
+    const sv = ch / videoH;
+    this.crop = [(1 - su) / 2, (1 - sv) / 2, su, sv];
+    return { cw, ch };
+  }
+
+  resize(cropW, cropH, outW, outH) {
+    // Never process more pixels than either the crop actually contains or the
+    // screen can show — beyond that is pure cost with nothing to see for it.
+    const cap = this.maxDimension;
+    let w = Math.min(cropW, outW, cap) * this.qualityScale;
+    let h = w * (outH / outW);
+    w = Math.max(2, Math.round(w));
+    h = Math.max(2, Math.round(h));
+    // Real sensor pixels behind each screen pixel, end to end. The processing
+    // buffer is a ceiling on detail just as much as the crop is, so the honest
+    // figure is whichever is smaller — measured against the screen, not
+    // against the buffer (which would flatter itself).
+    this.sourceScale = Math.min(cropW, w) / outW;
     if (w === this.width && h === this.height) return;
 
     const gl = this.gl;
@@ -88,8 +123,10 @@ export class Pipeline {
   // Frame budget feedback. Called with the measured GPU-side frame time.
   observeFrameTime(ms) {
     this.frameMs += (ms - this.frameMs) * 0.05;
-    if (this.frameMs > 34 && this.qualityScale > 0.55) {
-      this.qualityScale = Math.max(0.55, this.qualityScale - 0.08);
+    // Floor is 0.75, not 0.55: below that the softness is more objectionable
+    // than the dropped frames it buys back.
+    if (this.frameMs > 34 && this.qualityScale > 0.75) {
+      this.qualityScale = Math.max(0.75, this.qualityScale - 0.05);
       this.width = 0; // force a resize on next frame
     } else if (this.frameMs < 15 && this.qualityScale < 1) {
       this.qualityScale = Math.min(1, this.qualityScale + 0.04);
@@ -102,7 +139,19 @@ export class Pipeline {
     const gl = this.gl;
     const s = this.state;
 
-    this.resize(camera.width, camera.height);
+    const outW = this.core.canvas.width;
+    const outH = this.core.canvas.height;
+    const { cw, ch } = this.planCrop(camera.width, camera.height, s.zoom, outW / outH);
+    this.resize(cw, ch, outW, outH);
+
+    // Changing the crop invalidates the accumulated history — it was gathered
+    // through a different window onto the scene.
+    const cropKey = this.crop.map((v) => v.toFixed(4)).join(',');
+    if (cropKey !== this.lastCropKey) {
+      this.lastCropKey = cropKey;
+      this.needsReset = true;
+    }
+
     this.core.uploadVideo(this.videoTex, camera.video);
 
     // --- pass 1: accumulate ---
@@ -113,6 +162,7 @@ export class Pipeline {
       dst,
       { uFrame: this.videoTex, uHistory: src.tex },
       {
+        uCrop: this.crop,
         uAlphaMin: 1 / Math.max(1, s.stackFrames),
         uRejectLo: s.rejectLo,
         uRejectHi: s.rejectHi,
@@ -145,7 +195,8 @@ export class Pipeline {
     }
 
     // --- pass 2: composite to screen ---
-    const effZoom = Math.max(1, s.zoom);
+    // Only the stabiliser's margin crop happens here; user zoom already
+    // happened at ingest against full sensor resolution.
     this.core.draw(
       this.progComposite,
       null,
@@ -153,7 +204,7 @@ export class Pipeline {
       {
         uTexel: [1 / this.width, 1 / this.height],
         uOffset: motion.offset,
-        uZoom: effZoom,
+        uZoom: Math.max(1, s.stabMargin),
         uRoll: motion.roll,
         uMirror: s.mirror ? 1 : 0,
         uBlack: s.black,
