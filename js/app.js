@@ -1,9 +1,27 @@
 // Lumen — app wiring: camera, pipeline, motion, UI.
 
-import { Camera } from './camera.js';
-import { Pipeline } from './pipeline.js';
-import { Stabilizer, MARGIN } from './motion.js';
-import { MODES, applyMode } from './modes.js';
+// Every module is imported with the same ?v= query this file was loaded with,
+// so one version bump in index.html changes every module URL in the graph.
+//
+// Static imports are not enough on their own: a browser can satisfy a
+// subresource from its in-renderer memory cache without ever consulting the
+// service worker, so a plain reload could still run last week's pipeline.
+// Changing the URL is the only thing every cache layer agrees to respect.
+const V = new URL(import.meta.url).search || '';
+
+const [
+  { Camera },
+  { Pipeline },
+  { Stabilizer, MARGIN },
+  { MODES, applyMode },
+  { BUILD, installUpdater },
+] = await Promise.all([
+  import(`./camera.js${V}`),
+  import(`./pipeline.js${V}`),
+  import(`./motion.js${V}`),
+  import(`./modes.js${V}`),
+  import(`./version.js${V}`),
+]);
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,7 +37,19 @@ const el = {
   btnHist: $('btn-hist'), btnTorch: $('btn-torch'), btnDiag: $('btn-diag'),
   btnTune: $('btn-tune'), btnFlip: $('btn-flip'),
   reticle: $('reticle'), focusRow: $('focus-row'), slFocus: $('sl-focus'),
+  build: $('build'), updateBar: $('update-bar'), updateNow: $('update-now'),
 };
+
+// Show the running build immediately, before anything else can fail — the
+// first question when something looks wrong is "which version is this?"
+el.build.textContent = `build ${BUILD}`;
+
+installUpdater(() => { el.updateBar.hidden = false; });
+
+el.updateNow.addEventListener('click', () => {
+  // cache-bust the entry document itself; a plain reload can be served stale
+  location.replace(location.pathname + '?v=' + Date.now());
+});
 
 const camera = new Camera();
 const stabilizer = new Stabilizer();
@@ -451,7 +481,10 @@ function showDiagnostics() {
   const dbg = gl.getExtension('WEBGL_debug_renderer_info');
 
   const yn = (v) => `<span class="${v ? 'yes' : 'no'}">${v ? 'yes' : 'no'}</span>`;
+  const sw = navigator.serviceWorker?.controller ? 'active' : 'not active';
   const rows = [
+    ['Build', `<span class="yes">${BUILD}</span>`],
+    ['Auto-update worker', sw],
     ['Resolution', st.width ? `${st.width} × ${st.height}` : `${camera.width} × ${camera.height}`],
     ['Frame rate', st.frameRate ? `${Math.round(st.frameRate)} fps` : '—'],
     ['Lenses found', camera.lenses.length

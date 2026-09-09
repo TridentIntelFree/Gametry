@@ -11,6 +11,35 @@ Then tap **Share → Add to Home Screen** and it launches fullscreen like a nati
 Everything happens on your device. The camera feed never leaves the phone —
 there is no server, no upload, and no storage.
 
+## Not seeing a new version?
+
+Open **https://tridentintelfree.github.io/Gametry/?reset** — that unregisters the
+service worker, drops every cache and reloads clean. Any query string also
+forces Safari to fetch a fresh copy of the page, so it works even from a badly
+stuck cache.
+
+If you added it to your home screen, **delete the icon first** — a home-screen
+web app keeps its own cache container separate from Safari's — then re-add it
+after `?reset` has loaded.
+
+The build number is printed under the **Enable camera** button and at the top of
+**Info**. If it matches the latest release, you are up to date.
+
+Three mechanisms keep it that way:
+
+- A **network-first service worker**: every request goes to the network with the
+  HTTP cache bypassed, falling back to cache only when offline.
+- **Version-stamped URLs across the whole module graph.** The `?v=` on the entry
+  script is propagated to every import via `import.meta.url`, so one bump
+  changes every module URL. This matters because a browser can serve a
+  statically-imported module from its in-renderer memory cache without ever
+  consulting the service worker — changing the URL is the only thing every cache
+  layer respects.
+- `?nosw` skips the worker for one visit, if you ever need to rule it out.
+
+Releases use `tools/release.sh`, which stamps the version in all four places
+that must agree and fails loudly if they drift.
+
 ## Modes
 
 | Mode | What it does |
