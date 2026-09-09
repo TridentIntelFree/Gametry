@@ -5,16 +5,95 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Gametry</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="apple-mobile-web-app-title" content="Lumen">
+  <meta name="theme-color" content="#05070c">
+  <meta name="description" content="A camera that uses every photon your iPhone can gather.">
+  <title>Lumen</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <canvas id="game" width="960" height="540"></canvas>
-  <script src="js/input.js"></script>
-  <script src="js/touch.js"></script>
-  <script src="js/level.js"></script>
-  <script src="js/enemies.js"></script>
-  <script src="js/player.js"></script>
-  <script src="js/game.js"></script>
+  <canvas id="view"></canvas>
+
+  <!-- grid / level overlay -->
+  <svg id="guides" hidden aria-hidden="true">
+    <line class="g" x1="33.33%" y1="0" x2="33.33%" y2="100%"/>
+    <line class="g" x1="66.66%" y1="0" x2="66.66%" y2="100%"/>
+    <line class="g" x1="0" y1="33.33%" x2="100%" y2="33.33%"/>
+    <line class="g" x1="0" y1="66.66%" x2="100%" y2="66.66%"/>
+  </svg>
+
+  <!-- start gate: getUserMedia and the motion sensor both need a user gesture -->
+  <div id="gate">
+    <h1>Lumen</h1>
+    <p class="tag">Every photon your camera can gather.</p>
+    <button id="begin">Enable camera</button>
+    <p class="fine" id="gate-note">
+      Your camera feed is processed entirely on your device. Nothing is uploaded,
+      stored, or sent anywhere.
+    </p>
+    <p class="fine err" id="gate-error" hidden></p>
+  </div>
+
+  <!-- top bar -->
+  <header id="top" hidden>
+    <div class="modes" id="modes"></div>
+    <div class="toprow">
+      <button class="chip" id="btn-stab" aria-pressed="false">Stabilise</button>
+      <button class="chip" id="btn-peak" aria-pressed="false">Peaking</button>
+      <button class="chip" id="btn-grid" aria-pressed="false">Grid</button>
+      <button class="chip" id="btn-hist" aria-pressed="true">Histogram</button>
+      <button class="chip" id="btn-torch" aria-pressed="false" hidden>Torch</button>
+      <button class="chip" id="btn-diag">Info</button>
+    </div>
+  </header>
+
+  <!-- live readouts -->
+  <div id="readout" hidden>
+    <canvas id="histogram" width="128" height="48"></canvas>
+    <div class="stats"><span id="stat-res">—</span> · <span id="stat-fps">—</span> · <span id="stat-gain">—</span></div>
+  </div>
+
+  <p id="hint" hidden></p>
+
+  <!-- bottom controls -->
+  <footer id="bottom" hidden>
+    <div class="sliders" id="sliders" hidden>
+      <label>Brightness <input type="range" id="sl-gain" min="0.25" max="6" step="0.05" value="1"></label>
+      <label>Shadows <input type="range" id="sl-gamma" min="0.6" max="3" step="0.05" value="1"></label>
+      <label>Contrast <input type="range" id="sl-contrast" min="0.6" max="1.6" step="0.02" value="1"></label>
+      <label>Denoise <input type="range" id="sl-denoise" min="0" max="1" step="0.02" value="0.25"></label>
+      <label>Sharpen <input type="range" id="sl-sharp" min="0" max="1.5" step="0.02" value="0.25"></label>
+      <label>Colour <input type="range" id="sl-sat" min="0" max="2" step="0.02" value="1"></label>
+    </div>
+
+    <div class="zoomrow">
+      <div class="lenses" id="lenses"></div>
+      <input type="range" id="zoom" min="1" max="8" step="0.01" value="1" aria-label="Zoom">
+      <output id="zoomval">1.0×</output>
+    </div>
+
+    <div class="actions">
+      <button class="round" id="btn-tune" aria-label="Adjust">⚙</button>
+      <button class="shutter" id="shutter" aria-label="Capture"></button>
+      <button class="round" id="btn-flip" aria-label="Flip camera">⟲</button>
+    </div>
+  </footer>
+
+  <!-- diagnostics -->
+  <div id="diag" hidden>
+    <div class="sheet">
+      <h2>What this device supports</h2>
+      <div id="diag-body"></div>
+      <p class="fine">
+        LiDAR, RAW capture and true manual ISO / shutter are not exposed to web
+        pages on iOS by any browser. Everything listed above is what Lumen can
+        actually reach here.
+      </p>
+      <button id="diag-close">Close</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

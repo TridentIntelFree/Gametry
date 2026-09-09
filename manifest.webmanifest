@@ -1,0 +1,18 @@
+{
+  "name": "Lumen",
+  "short_name": "Lumen",
+  "description": "A camera that uses every photon your iPhone can gather.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070c",
+  "theme_color": "#05070c",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
