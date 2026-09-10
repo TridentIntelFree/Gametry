@@ -208,6 +208,40 @@ void main() {
   fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
+// --- focus metric -----------------------------------------------------------
+//
+// High-frequency energy inside a window, used by contrast-detect autofocus.
+// A defocused image is a low-pass-filtered version of a focused one, so the
+// focus distance that maximises gradient energy is the one in focus.
+//
+// Neighbours are sampled one source texel apart regardless of how the window
+// maps to the output, so the measurement tracks real detail rather than the
+// window's scale.
+export const SHARPNESS_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uAccum;
+uniform vec2 uTexel;
+uniform vec2 uWinOrigin;
+uniform vec2 uWinSize;
+${COMMON}
+
+void main() {
+  vec2 uv = uWinOrigin + vUv * uWinSize;
+  float l  = luma(texture(uAccum, uv).rgb);
+  float lx = luma(texture(uAccum, uv + vec2(uTexel.x, 0.0)).rgb);
+  float ly = luma(texture(uAccum, uv + vec2(0.0, uTexel.y)).rgb);
+  float g = abs(l - lx) + abs(l - ly);
+  // Encode WITHOUT saturating. g maxes out near 2.0, so scale by 0.5.
+  //
+  // Clamping here inverts the whole metric: a focused edge is a few pixels of
+  // very high gradient, a defocused one is many pixels of moderate gradient.
+  // Once the sharp pixels saturate, spreading that energy over more pixels
+  // scores *higher*, and the sweep converges on maximum blur.
+  fragColor = vec4(sqrt(g * 0.5), l, 0.0, 1.0);
+}`;
+
 // --- pass 3: downsample for CPU readback ------------------------------------
 //
 // A 64x64 box-filtered version of the accumulation buffer. Read back a few
