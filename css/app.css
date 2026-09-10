@@ -72,6 +72,14 @@ html, body {
   100% { transform: scale(1);   opacity: 1; }
 }
 #reticle.settled { opacity: 0.45; transition: opacity 0.5s; }
+#reticle.seeking {
+  border-color: var(--hot);
+  animation: seeking 0.9s ease-in-out infinite;
+}
+@keyframes seeking {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(0.86); opacity: 0.6; }
+}
 
 /* ---------- start gate ---------- */
 

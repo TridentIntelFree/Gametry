@@ -67,6 +67,32 @@ in sRGB would bias exactly the shadows we're trying to rescue.
 After that: black-point subtraction, auto-gain driven by a 64×64 readback of the
 scene, a shadow-lifting tone curve, edge-aware denoise, and unsharp masking.
 
+## Focus
+
+Safari exposes no `focusMode` and no `pointsOfInterest` on many iPhones, so
+there is simply no way to *ask* the camera to focus. It does expose
+`focusDistance`. That is enough to do the job ourselves.
+
+**Tap the viewfinder**, or press **Focus**, and Lumen sweeps the lens through
+its range, measures how much high-frequency detail the image contains at each
+position, and settles on the peak. That is contrast-detection autofocus — the
+same principle a mirrorless camera uses. A coarse pass locates the peak, a fine
+pass refines it; it takes a second or two.
+
+The metric is the sum of *squared* luminance gradients, normalised by mean
+brightness squared so it tracks focus rather than exposure. Squaring matters: a
+focused edge concentrates its energy into a few pixels, and squaring rewards
+that concentration, whereas a defocused edge spreads the same energy thinly.
+Measured against progressively blurred test images it falls monotonically by
+three orders of magnitude.
+
+Where the camera *does* offer its own autofocus, that is used instead and the
+sweep never runs.
+
+The **Focus** slider in ⚙ drives the lens manually. Turn on **Peaking** while
+using it — in-focus edges light up, which is far easier to judge than squinting
+at a phone screen.
+
 ## Sharpness
 
 Two things decide whether the preview looks sharp, and the **Info** panel

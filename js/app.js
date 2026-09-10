@@ -15,12 +15,14 @@ const [
   { Stabilizer, MARGIN },
   { MODES, applyMode },
   { BUILD, installUpdater },
+  { AutoFocus },
 ] = await Promise.all([
   import(`./camera.js${V}`),
   import(`./pipeline.js${V}`),
   import(`./motion.js${V}`),
   import(`./modes.js${V}`),
   import(`./version.js${V}`),
+  import(`./autofocus.js${V}`),
 ]);
 
 const $ = (id) => document.getElementById(id);
@@ -38,6 +40,7 @@ const el = {
   btnTune: $('btn-tune'), btnFlip: $('btn-flip'),
   reticle: $('reticle'), focusRow: $('focus-row'), slFocus: $('sl-focus'),
   build: $('build'), updateBar: $('update-bar'), updateNow: $('update-now'),
+  btnAf: $('btn-af'),
 };
 
 // Show the running build immediately, before anything else can fail — the
@@ -54,6 +57,7 @@ el.updateNow.addEventListener('click', () => {
 const camera = new Camera();
 const stabilizer = new Stabilizer();
 let pipeline = null;
+let autofocus = null;
 let running = false;
 let currentMode = 'auto';
 let userZoom = 1;
@@ -98,6 +102,7 @@ async function start() {
   await camera.start(1);
 
   pipeline = new Pipeline(el.view);
+  autofocus = new AutoFocus(camera, pipeline);
   // Ask for motion permission in the same gesture; declining just disables it.
   await stabilizer.requestPermission();
 
@@ -117,7 +122,7 @@ async function start() {
   // Debug handle: lets a console session (or a test) inspect and poke the
   // live pipeline — e.g. `lumen.pipeline.sourceScale` to see whether the
   // preview is upscaling, or `lumen.pipeline.qualityScale = 1` to pin quality.
-  window.lumen = { camera, pipeline, stabilizer, setZoom, applyPreset };
+  window.lumen = { camera, pipeline, stabilizer, autofocus, setZoom, applyPreset, runAutoFocus };
 
   running = true;
   requestAnimationFrame(loop);
@@ -130,6 +135,30 @@ function syncCapabilityUI() {
   const caps = camera.capabilities;
   el.btnTorch.hidden = !caps.hasTorch;
   el.focusRow.hidden = !caps.hasFocus;
+  // Where the camera has no autofocus of its own, offer ours explicitly
+  // rather than leaving it hidden behind a tap on the viewfinder.
+  el.btnAf.hidden = !(autofocus?.available && !caps.hasPOI);
+}
+
+el.btnAf?.addEventListener('click', () => runAutoFocus(0.5, 0.5));
+
+async function runAutoFocus(vx, vy) {
+  if (!autofocus?.available) return;
+  if (autofocus.running) { autofocus.cancel(); return; }
+  const rect = el.view.getBoundingClientRect();
+  showReticle(rect.left + rect.width * vx, rect.top + rect.height * vy);
+  el.reticle.classList.add('seeking');
+  el.btnAf.classList.add('on');
+  showHint('Focusing…', 8000);
+  const best = await autofocus.run(vx, vy);
+  el.reticle.classList.remove('seeking');
+  el.btnAf.classList.remove('on');
+  if (best) {
+    el.slFocus.value = String(best.t);
+    showHint('Focus locked');
+  } else {
+    showHint('Could not find focus — needs more light or contrast');
+  }
 }
 
 function buildModes() {
@@ -241,6 +270,7 @@ let zoomMin = 1;
 let zoomMax = 8;
 let lensSwitching = false;
 let pendingLens = null;
+let zoomSeq = 0;
 // Macro deliberately stays on the ultra-wide and crops in, so it opts out of
 // the automatic hand-over that would otherwise pull it back to the main lens.
 let lensPinned = false;
@@ -254,8 +284,18 @@ function setZoom(z, { allowLensSwitch = true } = {}) {
   if (lens && lens.deviceId !== camera.currentId) scheduleLens(lens);
 
   const factor = currentLensFactor();
-  pipeline.state.zoom = Math.max(1, userZoom / factor);
-  camera.setNativeZoom(userZoom / factor).catch(() => {});
+  const residual = Math.max(1, userZoom / factor);
+
+  // Sensor zoom and the ingest crop must not both apply, or the zoom is
+  // squared — 2x becomes 4x, heavily cropped and soft. Prefer the sensor
+  // (it scales from the full sensor read-out) and only crop if it declines.
+  const seq = ++zoomSeq;
+  pipeline.state.zoom = camera.nativeZoomActive ? 1 : residual;
+  camera.setNativeZoom(residual).then((ok) => {
+    if (seq !== zoomSeq) return;         // a newer zoom superseded this one
+    camera.nativeZoomActive = ok;
+    pipeline.state.zoom = ok ? 1 : residual;
+  }).catch(() => {});
 }
 
 function currentLensFactor() {
@@ -321,14 +361,21 @@ el.view.addEventListener('click', async (e) => {
 
   showReticle(e.clientX, e.clientY);
 
+  // Preferred path: hand the point to the camera's own autofocus.
   const res = await camera.focusAt(nx, ny);
-  if (!res.ok) {
-    showHint(res.reason === 'unsupported'
-      ? 'This browser will not let a web page steer focus — see Info'
-      : 'The camera refused the focus request');
-  } else if (!res.poi) {
-    showHint('Refocusing (this browser ignores the tap point)');
+  if (res.ok && res.poi) return;
+
+  // This browser exposes no focus mode and no point of interest, but it does
+  // expose focusDistance — so drive the lens ourselves and pick the distance
+  // with the most detail at the tapped point.
+  if (autofocus?.available) {
+    await runAutoFocus(vx, vy);
+    return;
   }
+
+  showHint(res.ok
+    ? 'Refocusing (this browser ignores the tap point)'
+    : 'This browser will not let a web page steer focus — see Info');
 });
 
 function showReticle(x, y) {
@@ -494,7 +541,11 @@ function showDiagnostics() {
     ['Torch', yn(caps.hasTorch)],
     ['Tap to focus', yn(caps.hasPOI)],
     ['Focus modes', caps.focusModes?.length ? caps.focusModes.join(', ') : '<span class="no">none exposed</span>'],
-    ['Manual focus', yn(caps.hasFocus)],
+    ['Manual focus', yn(caps.hasFocus) +
+      (cc.focusDistance ? ` (${cc.focusDistance.min}–${cc.focusDistance.max})` : '')],
+    ['Contrast autofocus', autofocus?.available
+      ? '<span class="yes">available</span>'
+      : '<span class="no">needs manual focus</span>'],
     ['Manual ISO', yn(caps.hasISO)],
     ['Manual shutter', yn(caps.hasExposureTime)],
     ['Motion sensor', yn(stabilizer.available && stabilizer.granted)],

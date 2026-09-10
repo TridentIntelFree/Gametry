@@ -30,6 +30,8 @@ export class Camera {
     this.currentId = null;
     this.facing = 'environment';
     this.capabilities = {};
+    this.nativeZoomActive = false; // true once the sensor accepts a zoom constraint
+    this.focusT = null;            // last manual focus position, 0..1
   }
 
   get ready() {
@@ -146,6 +148,9 @@ export class Camera {
     this.currentId = deviceId;
     this.facing = facing;
     this.video.srcObject = stream;
+    // A different lens is a different device with its own capabilities.
+    this.nativeZoomActive = false;
+    this.focusT = null;
     this.probe();
     this.setContinuousFocus().catch(() => {});
 
@@ -223,16 +228,28 @@ export class Camera {
     }
   }
 
-  // Manual focus, where the browser exposes it. 0 = closest, 1 = infinity.
-  async setFocusDistance(t) {
+  focusRange() {
     const cc = this.capabilities.capabilities;
-    if (!cc || !('focusDistance' in cc)) return false;
-    const { min, max } = cc.focusDistance;
-    const value = min + (max - min) * Math.max(0, Math.min(1, t));
+    if (!cc || !('focusDistance' in cc)) return null;
+    const { min, max, step } = cc.focusDistance;
+    return { min, max, step: step || (max - min) / 100 };
+  }
+
+  // Manual focus, where the browser exposes it. t is 0..1 across the range.
+  //
+  // focusMode is only sent when the browser actually advertises it: an
+  // `advanced` dictionary is applied all-or-nothing, so naming an unsupported
+  // constraint alongside focusDistance makes the browser discard the whole
+  // dictionary — and focus silently never moves.
+  async setFocusDistance(t) {
+    const range = this.focusRange();
+    if (!range) return false;
+    const value = range.min + (range.max - range.min) * Math.max(0, Math.min(1, t));
+    const dict = { focusDistance: value };
+    if ((this.capabilities.focusModes || []).includes('manual')) dict.focusMode = 'manual';
     try {
-      await this.track.applyConstraints({
-        advanced: [{ focusMode: 'manual', focusDistance: value }],
-      });
+      await this.track.applyConstraints({ advanced: [dict] });
+      this.focusT = t;
       return true;
     } catch {
       return false;

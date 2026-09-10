@@ -3,7 +3,7 @@
 // Bump BUILD on every deploy. It is shown on the start screen and in the Info
 // panel so "am I running the new version?" is answerable at a glance instead
 // of being guessed at.
-export const BUILD = '2026.09.09-9';
+export const BUILD = '2026.09.10-1';
 
 // Registers the network-first service worker, and provides the escape hatches:
 //   ?reset  unregister the worker, drop all caches, reload clean

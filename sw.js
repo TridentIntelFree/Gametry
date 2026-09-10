@@ -8,7 +8,7 @@
 // This exists because ES module imports are cached independently of the
 // entry point, so a refreshed app.js would still pull stale modules.
 
-const VERSION = 'lumen-2026.09.09-9';
+const VERSION = 'lumen-2026.09.10-1';
 
 self.addEventListener('install', () => {
   // Take over immediately rather than waiting for every tab to close.

@@ -4,13 +4,15 @@
 // See the note in app.js: the ?v= query is carried through the whole module
 // graph so a release cannot be served half-stale.
 const V = new URL(import.meta.url).search || '';
-const [{ GLCore }, { VERT, ACCUM_FRAG, COMPOSITE_FRAG, ANALYZE_FRAG }] = await Promise.all([
-  import(`./glcore.js${V}`),
-  import(`./shaders.js${V}`),
-]);
+const [{ GLCore }, { VERT, ACCUM_FRAG, COMPOSITE_FRAG, ANALYZE_FRAG, SHARPNESS_FRAG }] =
+  await Promise.all([
+    import(`./glcore.js${V}`),
+    import(`./shaders.js${V}`),
+  ]);
 
 const ANALYZE_SIZE = 64;
 const ANALYZE_INTERVAL = 180; // ms between CPU readbacks
+const SHARP_SIZE = 96;        // focus-metric window resolution
 
 export class Pipeline {
   constructor(canvas) {
@@ -27,6 +29,10 @@ export class Pipeline {
     this.analyzeTarget = this.core.target(ANALYZE_SIZE, ANALYZE_SIZE, 'byte');
     this.analyzeBuf = new Uint8Array(ANALYZE_SIZE * ANALYZE_SIZE * 4);
     this.lastAnalyze = 0;
+
+    this.progSharp = this.core.program(VERT, SHARPNESS_FRAG, 'sharpness');
+    this.sharpTarget = this.core.target(SHARP_SIZE, SHARP_SIZE, 'byte');
+    this.sharpBuf = new Uint8Array(SHARP_SIZE * SHARP_SIZE * 4);
 
     this.width = 0;
     this.height = 0;
@@ -254,6 +260,50 @@ export class Pipeline {
       this.histogram[bin]++;
     }
     this.meanLuma = sum / n;
+  }
+
+  // Focus metric for a window of the frame, centred on (cx, cy) in 0..1.
+  // Returns mean gradient energy normalised by mean brightness, so the number
+  // reflects focus rather than exposure — auto-gain moves during a sweep and
+  // would otherwise masquerade as a sharpness change.
+  measureSharpness(cx = 0.5, cy = 0.5, size = 0.4) {
+    const gl = this.gl;
+    const accumTex = this.accum[this.front].tex;
+    const half = size / 2;
+    const ox = Math.max(0, Math.min(1 - size, cx - half));
+    const oy = Math.max(0, Math.min(1 - size, cy - half));
+
+    this.core.draw(
+      this.progSharp,
+      this.sharpTarget,
+      { uAccum: accumTex },
+      {
+        uTexel: [1 / this.width, 1 / this.height],
+        uWinOrigin: [ox, oy],
+        uWinSize: [size, size],
+      }
+    );
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sharpTarget.fbo);
+    gl.readPixels(0, 0, SHARP_SIZE, SHARP_SIZE, gl.RGBA, gl.UNSIGNED_BYTE, this.sharpBuf);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    // Sum of SQUARED gradients (Tenengrad): a sharp edge concentrates its
+    // energy into few pixels, and squaring rewards that concentration. Spread
+    // the same edge over N pixels and the sum falls by ~N.
+    let grad = 0;
+    let lum = 0;
+    const n = SHARP_SIZE * SHARP_SIZE;
+    for (let i = 0; i < n; i++) {
+      const e = this.sharpBuf[i * 4] / 255;
+      const g = e * e * 2;               // undo sqrt(g * 0.5)
+      grad += g * g;
+      lum += this.sharpBuf[i * 4 + 1] / 255;
+    }
+    // Normalise by mean SQUARED, so the metric is invariant to brightness:
+    // scale the image by k and g² scales by k², matching the divisor.
+    const mean = Math.max(lum / n, 0.02);
+    return (grad / n) / (mean * mean);
   }
 
   // Read the current canvas back as a PNG blob for saving/sharing.

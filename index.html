@@ -11,7 +11,7 @@
   <title>Lumen</title>
   <link rel="manifest" href="manifest.webmanifest">
   <!-- ?v= is bumped with each release so a stale stylesheet cannot survive -->
-  <link rel="stylesheet" href="css/app.css?v=2026.09.09-9">
+  <link rel="stylesheet" href="css/app.css?v=2026.09.10-1">
 </head>
 <body>
   <canvas id="view"></canvas>
@@ -50,6 +50,7 @@
   <header id="top" hidden>
     <div class="modes" id="modes"></div>
     <div class="toprow">
+      <button class="chip" id="btn-af" hidden>Focus</button>
       <button class="chip" id="btn-stab" aria-pressed="false">Stabilise</button>
       <button class="chip" id="btn-peak" aria-pressed="false">Peaking</button>
       <button class="chip" id="btn-grid" aria-pressed="false">Grid</button>
@@ -106,6 +107,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=2026.09.09-9"></script>
+  <script type="module" src="js/app.js?v=2026.09.10-1"></script>
 </body>
 </html>
